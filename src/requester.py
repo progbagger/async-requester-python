@@ -1,6 +1,5 @@
 import aiohttp, logging, asyncio
 from typing import Dict, Optional, Any, Callable, Tuple, TextIO
-import sys
 
 
 class Requester:
@@ -10,7 +9,7 @@ class Requester:
         headers: Optional[Dict] = None,
         log: str | bool | TextIO = False,
     ) -> None:
-        self.base_url = base_url
+        self.BASE_URL = base_url
         self.LOGGER = logging.getLogger(__name__)
         self.LOGGER.setLevel(logging.DEBUG)
         self.URL = base_url
@@ -38,13 +37,13 @@ class Requester:
         return self
 
     async def __aexit__(self, *args) -> None:
-        await self._client.close()
+        await self.close()
 
     async def _request(
         self, method: Callable, endpoint: str, data: Optional[Dict] = None
-    ) -> Tuple[int, Any]:
+    ) -> aiohttp.ClientResponse:
         try:
-            if not self.base_url:
+            if not self.BASE_URL:
                 s = endpoint
             else:
                 s = f"/{endpoint}"
@@ -54,28 +53,33 @@ class Requester:
                 self.LOGGER.info(log_str)
             else:
                 self.LOGGER.warning(log_str)
-            try:
-                result = await response.json()
-            except Exception:
-                result = await response.text()
         except Exception as err:
             self.LOGGER.exception(err)
             raise err
-        return response.status, result
+        return response
 
-    async def get(self, endpoint: str, data: Optional[Dict] = None) -> Tuple[int, Any]:
+    async def get(
+        self, endpoint: str, data: Optional[Dict] = None
+    ) -> aiohttp.ClientResponse:
         return await self._request(self._client.get, endpoint, data)
 
-    async def post(self, endpoint: str, data: Optional[Dict] = None) -> Tuple[int, Any]:
+    async def post(
+        self, endpoint: str, data: Optional[Dict] = None
+    ) -> aiohttp.ClientResponse:
         return await self._request(self._client.post, endpoint, data)
 
-    async def put(self, endpoint: str, data: Optional[Dict] = None) -> Tuple[int, Any]:
+    async def put(
+        self, endpoint: str, data: Optional[Dict] = None
+    ) -> aiohttp.ClientResponse:
         return await self._request(self._client.put, endpoint, data)
 
     async def delete(
         self, endpoint: str, data: Optional[Dict] = None
-    ) -> Tuple[int, Any]:
+    ) -> aiohttp.ClientResponse:
         return await self._request(self._client.delete, endpoint, data)
+
+    async def close(self) -> None:
+        await self._client.close()
 
 
 async def main():
@@ -84,13 +88,10 @@ async def main():
         None,
         False,
     ) as requester:
-        print(
-            (
-                await requester.get(
-                    "https://stackoverflow.com/questions/63703237/proper-typing-for-sys-stdout-and-files/"
-                )
-            )[0]
+        response = await requester.get(
+            "https://stackoverflow.com/questions/63703237/proper-typing-for-sys-stdout-and-files"
         )
+        print(await response.text())
 
 
 if __name__ == "__main__":
