@@ -30,11 +30,15 @@ class Requester:
                 LOGGER.info(log_str)
             else:
                 LOGGER.warning(log_str)
-            json = await response.json()
+            try:
+                result = await response.json()
+            except Exception as err:
+                LOGGER.exception(err)
+                result = await response.text()
         except Exception as err:
             LOGGER.exception(err)
             raise err
-        return response.status, json
+        return response.status, result
 
     async def get(self, endpoint: str, data: Optional[Dict] = None) -> Tuple[int, Any]:
         return await self._request(self._client.get, endpoint, data)
