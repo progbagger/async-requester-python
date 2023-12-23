@@ -1,5 +1,6 @@
 import aiohttp, logging, asyncio
-from typing import Dict, Optional, Any, Callable, Tuple, TextIO
+from typing import Dict, Optional, Callable, TextIO
+from urllib.parse import urljoin
 
 
 class Requester:
@@ -9,12 +10,13 @@ class Requester:
         headers: Optional[Dict] = None,
         log: str | bool | TextIO = False,
     ) -> None:
-        self.BASE_URL = base_url
         self.LOGGER = logging.getLogger(__name__)
         self.LOGGER.setLevel(logging.DEBUG)
         self.URL = base_url
+        if self.URL and not self.URL.endswith("/"):
+            self.URL = self.URL + "/"
         self.HEADERS = headers
-        self._client = aiohttp.ClientSession(self.URL, headers=self.HEADERS)
+        self._client = aiohttp.ClientSession(None, headers=self.HEADERS)
         try:
             handler = None
             if isinstance(log, bool) and log:
@@ -36,47 +38,50 @@ class Requester:
     async def __aenter__(self) -> "Requester":
         return self
 
-    async def __aexit__(self, *args) -> None:
+    async def __aexit__(self, *_) -> None:
         await self.close()
 
     async def _request(
-        self, method: Callable, endpoint: str, data: Optional[Dict] = None
+        self,
+        method: Callable,
+        endpoint: str,
+        headers: Optional[Dict] = None,
+        data: Optional[Dict] = None,
     ) -> aiohttp.ClientResponse:
         try:
-            if not self.BASE_URL:
-                s = endpoint
-            else:
-                s = f"/{endpoint}"
-            response: aiohttp.ClientResponse = await method(s, json=data)
+            s = urljoin(self.URL, endpoint)
+            response: aiohttp.ClientResponse = await method(
+                s, json=data, headers=headers
+            )
             log_str = f"{response.status} {response.real_url}"
             if response.status == 200:
                 self.LOGGER.info(log_str)
             else:
                 self.LOGGER.warning(log_str)
         except Exception as err:
-            self.LOGGER.exception(err)
-            raise err
+            self.LOGGER.exception(str(err))
+            raise
         return response
 
     async def get(
-        self, endpoint: str, data: Optional[Dict] = None
+        self, endpoint: str, headers: Optional[Dict] = None, data: Optional[Dict] = None
     ) -> aiohttp.ClientResponse:
-        return await self._request(self._client.get, endpoint, data)
+        return await self._request(self._client.get, endpoint, headers, data)
 
     async def post(
-        self, endpoint: str, data: Optional[Dict] = None
+        self, endpoint: str, headers: Optional[Dict] = None, data: Optional[Dict] = None
     ) -> aiohttp.ClientResponse:
-        return await self._request(self._client.post, endpoint, data)
+        return await self._request(self._client.post, endpoint, headers, data)
 
     async def put(
-        self, endpoint: str, data: Optional[Dict] = None
+        self, endpoint: str, headers: Optional[Dict] = None, data: Optional[Dict] = None
     ) -> aiohttp.ClientResponse:
-        return await self._request(self._client.put, endpoint, data)
+        return await self._request(self._client.put, endpoint, headers, data)
 
     async def delete(
-        self, endpoint: str, data: Optional[Dict] = None
+        self, endpoint: str, headers: Optional[Dict] = None, data: Optional[Dict] = None
     ) -> aiohttp.ClientResponse:
-        return await self._request(self._client.delete, endpoint, data)
+        return await self._request(self._client.delete, endpoint, headers, data)
 
     async def close(self) -> None:
         await self._client.close()
